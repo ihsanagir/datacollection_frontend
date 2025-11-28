@@ -62,7 +62,7 @@ const SIDEBAR_ITEMS = [
   { id: 'sorular', label: 'Sorular / Cevaplar', icon: <MessageCircle size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN, ROLES.USER] },
   { id: 'kullanicilar', label: 'Kullanıcılar', icon: <Users size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN] },
   // --- YENİ EKLENEN MENÜ ---
-  { id: 'kurum-yonetimi', label: 'Kurum/Birim', icon: <Building size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
+  { id: 'kurum-yonetimi', label: 'Kurum / Birim', icon: <Building size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
   { id: 'logs', label: 'Sistem Kayıtları', icon: <Activity size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
   { id: 'profil', label: 'Profilim', icon: <User size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN, ROLES.USER] },
 ];
