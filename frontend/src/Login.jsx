@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Lock, ShieldCheck, Smartphone, ArrowRight, RefreshCw, Eye, EyeOff, XCircle } from 'lucide-react';
-import logo from './assets/logo.png'; // Logonuzu buradan çekiyoruz
+import logo from './assets/logo.png'; 
 
-// --- YARDIMCI FONKSİYON: ŞİFRE HASHLEME ---
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -10,7 +9,6 @@ async function hashPassword(password) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Varsayılan Kullanıcılar (Eğer hafıza boşsa bunlar yüklenecek)
 const DEFAULT_USERS = [
   { id: 1, username: "superadmin", passwordHash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92", role: "SuperAdmin", name: "Ahmet Yılmaz", institution: "T.C. İçişleri Bakanlığı", department: "Bilgi İşlem", institutionId: 1, departmentId: 10, email: "ahmet@gov.tr", phone: "5551112233" },
   { id: 2, username: "admin", passwordHash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92", role: "Admin", name: "Fatma Çelik", institution: "Emniyet Genel Müdürlüğü", department: "Yönetim", institutionId: 2, departmentId: 20, email: "fatma@egm.gov.tr", phone: "5552223344" },
@@ -100,11 +98,9 @@ export default function LoginPage({ onLoginSuccess }) {
       <div className="absolute inset-0 z-0 opacity-5 pointer-events-none bg-[radial-gradient(#e30a17_1px,transparent_1px)] [background-size:16px_16px]"></div>
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden z-10 border border-gray-200">
         
-        {/* --- LOGO VE BAŞLIK ALANI (GÜNCELLENDİ) --- */}
         <div className="bg-gradient-to-r from-red-800 to-red-600 p-8 text-center relative flex flex-col items-center">
           <div className="absolute top-0 left-0 w-full h-full bg-white/10" style={{clipPath: 'polygon(0 0, 100% 0, 100% 85%, 0 100%)'}}></div>
           
-          {/* Logo */}
           <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg z-10">
             <img src={logo} alt="Kurum Logosu" className="w-12 h-12 object-contain" />
           </div>
@@ -147,7 +143,6 @@ export default function LoginPage({ onLoginSuccess }) {
               
               <div className="flex flex-col gap-3">
                 
-                {/* --- OTP BUTONU (DÜZELTİLDİ: Flex ve Gap ile Yan Yana) --- */}
                 <button 
                   type="submit" 
                   disabled={loading} 
