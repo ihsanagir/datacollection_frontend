@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, FileText, Users, User, LogOut, Plus, Search, Bell, Menu, 
-  ChevronRight, Edit, Trash2, Eye, CheckCircle, XCircle, Clock, Shield, Building, Activity, MessageCircle, AlertCircle, ChevronLeft
+  ChevronRight, Edit, Trash2, Eye, CheckCircle, XCircle, Clock, Shield, Building, Activity, MessageCircle, AlertCircle, ChevronLeft, MapPin
 } from 'lucide-react';
 import LoginPage from './Login';
 import logo from './assets/logo.png'; 
 
+// --- YARDIMCI: Şifre Hashleme ---
 async function hashPassword(password) {
   const msgBuffer = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -13,7 +14,8 @@ async function hashPassword(password) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const INSTITUTIONS_LIST = [
+// --- BAŞLANGIÇ VERİLERİ (Artık State olacak) ---
+const INITIAL_INSTITUTIONS = [
   { id: 1, name: "T.C. İçişleri Bakanlığı", departments: [
       { id: 10, name: "Bilgi İşlem" },
       { id: 11, name: "Personel Daire Bşk." }
@@ -38,6 +40,7 @@ const STATUS = {
   PENDING: 0, LOCAL_APPROVED: 1, PUBLISHED: 2, REJECTED: 3
 };
 
+// Varsayılan Kullanıcılar
 const DEFAULT_USERS = [
   { id: 1, username: "superadmin", passwordHash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92", role: "SuperAdmin", name: "Ahmet Yılmaz", institution: "T.C. İçişleri Bakanlığı", department: "Bilgi İşlem", institutionId: 1, departmentId: 10, email: "ahmet@gov.tr", phone: "5551112233" },
   { id: 2, username: "admin", passwordHash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92", role: "Admin", name: "Fatma Çelik", institution: "Emniyet Genel Müdürlüğü", department: "Yönetim", institutionId: 2, departmentId: 20, email: "fatma@egm.gov.tr", phone: "5552223344" },
@@ -58,6 +61,8 @@ const SIDEBAR_ITEMS = [
   { id: 'anasayfa', label: 'Ana Sayfa', icon: <Home size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN, ROLES.USER] },
   { id: 'sorular', label: 'Sorular / Cevaplar', icon: <MessageCircle size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN, ROLES.USER] },
   { id: 'kullanicilar', label: 'Kullanıcılar', icon: <Users size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN] },
+  // --- YENİ EKLENEN MENÜ ---
+  { id: 'kurum-yonetimi', label: 'Kurum/Birim', icon: <Building size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
   { id: 'logs', label: 'Sistem Kayıtları', icon: <Activity size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN] },
   { id: 'profil', label: 'Profilim', icon: <User size={20} />, allowedRoles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN, ROLES.USER] },
 ];
@@ -69,6 +74,12 @@ export default function App() {
   
   const [contents, setContents] = useState(INITIAL_CONTENTS);
   
+  // Kurumlar Listesi Artık Bir State (Ekleme yapabilmek için)
+  const [institutions, setInstitutions] = useState(() => {
+    const saved = localStorage.getItem('app_institutions');
+    return saved ? JSON.parse(saved) : INITIAL_INSTITUTIONS;
+  });
+
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('app_users');
     return saved ? JSON.parse(saved) : DEFAULT_USERS;
@@ -76,15 +87,16 @@ export default function App() {
 
   const [logs, setLogs] = useState([]);
   
+  // Modallar
   const [showContentModal, setShowContentModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingId, setRejectingId] = useState(null);
 
-  useEffect(() => {
-    localStorage.setItem('app_users', JSON.stringify(users));
-  }, [users]);
+  // LocalStorage Güncellemeleri
+  useEffect(() => { localStorage.setItem('app_users', JSON.stringify(users)); }, [users]);
+  useEffect(() => { localStorage.setItem('app_institutions', JSON.stringify(institutions)); }, [institutions]);
 
   const handleLoginSuccess = (incomingUser) => {
     const fullUser = users.find(u => u.username === incomingUser.username);
@@ -100,6 +112,7 @@ export default function App() {
 
   if (!currentUser) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
 
+  // --- SORU FONKSİYONLARI ---
   const handleSaveContent = (formData) => {
     let initialStatus = STATUS.PENDING;
     if (currentUser.role === ROLES.LOCAL_ADMIN) initialStatus = STATUS.LOCAL_APPROVED;
@@ -131,29 +144,18 @@ export default function App() {
     setContents(contents.map(c => c.id === id ? { ...c, status: newStatus, rejectionReason: null } : c));
   };
 
-  const handleOpenRejectModal = (id) => {
-    setRejectingId(id);
-    setShowRejectModal(true);
-  };
-
+  const handleOpenRejectModal = (id) => { setRejectingId(id); setShowRejectModal(true); };
   const handleConfirmReject = (reason) => {
-    setContents(contents.map(c => c.id === rejectingId 
-      ? { ...c, status: STATUS.REJECTED, rejectionReason: reason || null } 
-      : c
-    ));
-    setShowRejectModal(false);
-    setRejectingId(null);
-    alert("Soru reddedildi.");
+    setContents(contents.map(c => c.id === rejectingId ? { ...c, status: STATUS.REJECTED, rejectionReason: reason || null } : c));
+    setShowRejectModal(false); setRejectingId(null); alert("Soru reddedildi.");
   };
 
+  // --- KULLANICI FONKSİYONLARI ---
   const handleAddUser = () => { setEditingUser(null); setShowUserModal(true); };
   const handleEditUser = (user) => { setEditingUser(user); setShowUserModal(true); };
-  
   const handleSaveUser = async (userData) => {
     let finalPasswordHash = userData.passwordHash;
-    if (userData.password) {
-        finalPasswordHash = await hashPassword(userData.password);
-    }
+    if (userData.password) finalPasswordHash = await hashPassword(userData.password);
     const userToSave = { ...userData, passwordHash: finalPasswordHash, password: undefined };
 
     if (editingUser) {
@@ -166,11 +168,29 @@ export default function App() {
     }
     setShowUserModal(false);
   };
+  const handleDeleteUser = (id) => { if (window.confirm("Kullanıcı silinecek?")) setUsers(users.filter(u => u.id !== id)); };
 
-  const handleDeleteUser = (id) => {
-    if (window.confirm("Kullanıcı silinecek?")) setUsers(users.filter(u => u.id !== id));
+  // --- YENİ: KURUM/BİRİM EKLEME FONKSİYONLARI ---
+  const handleAddInstitution = (name) => {
+    const newInst = { id: Date.now(), name: name, departments: [] };
+    setInstitutions([...institutions, newInst]);
+    alert("Yeni kurum eklendi!");
   };
 
+  const handleAddDepartment = (instId, deptName) => {
+    setInstitutions(institutions.map(inst => {
+      if (inst.id === Number(instId)) {
+        return {
+          ...inst,
+          departments: [...inst.departments, { id: Date.now(), name: deptName }]
+        };
+      }
+      return inst;
+    }));
+    alert("Yeni birim eklendi!");
+  };
+
+  // --- FİLTRELER & RENDER ---
   const getFilteredContents = () => {
     if (currentUser.role === ROLES.SUPER_ADMIN) return contents;
     if (currentUser.role === ROLES.ADMIN) return contents.filter(c => c.institutionId === currentUser.institutionId);
@@ -188,29 +208,21 @@ export default function App() {
 
   const renderContent = () => {
     const filteredDocs = getFilteredContents();
-    
     const approvedCount = filteredDocs.filter(c => c.status === STATUS.PUBLISHED).length;
     const pendingCount = filteredDocs.filter(c => c.status === STATUS.PENDING || c.status === STATUS.LOCAL_APPROVED).length;
-    
     const rejectedCount = filteredDocs.filter(c => c.status === STATUS.REJECTED).length;
-    
     const usersCount = getFilteredUsers().length;
-  
+
     switch (activeTab) {
-      case 'anasayfa': 
-        return <DashboardView 
-                  currentUser={currentUser} 
-                  stats={{ 
-                      approved: approvedCount, 
-                      pending: pendingCount, 
-                      rejected: rejectedCount, 
-                      users: usersCount 
-                  }} 
-               />;
+      case 'anasayfa': return <DashboardView currentUser={currentUser} stats={{ approved: approvedCount, pending: pendingCount, rejected: rejectedCount, users: usersCount }} />;
       case 'sorular': return <QuestionsView currentUser={currentUser} data={filteredDocs} onOpenModal={() => setShowContentModal(true)} onStatusChange={handleStatusChange} onDelete={handleDeleteContent} onReject={handleOpenRejectModal} />;
       case 'kullanicilar': 
         if (![ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN].includes(currentUser.role)) return <AccessDenied />;
         return <UsersView currentUser={currentUser} data={getFilteredUsers()} onAdd={handleAddUser} onEdit={handleEditUser} onDelete={handleDeleteUser} />;
+      // --- YENİ SAYFA RENDER ---
+      case 'kurum-yonetimi':
+        if (![ROLES.SUPER_ADMIN, ROLES.ADMIN].includes(currentUser.role)) return <AccessDenied />;
+        return <InstitutionManagerView currentUser={currentUser} institutions={institutions} onAddInstitution={handleAddInstitution} onAddDepartment={handleAddDepartment} />;
       case 'logs': return <LogsView logs={logs} />;
       case 'profil': return <ProfileView user={currentUser} />;
       default: return null;
@@ -256,222 +268,135 @@ export default function App() {
       </main>
       
       {showContentModal && <ContentModal onClose={() => setShowContentModal(false)} onSave={handleSaveContent} />}
-      {showUserModal && <UserModal user={editingUser} currentUser={currentUser} onClose={() => setShowUserModal(false)} onSave={handleSaveUser} />}
+      {/* UserModal'a institutions state'ini gönderiyoruz ki güncel listeyi görsün */}
+      {showUserModal && <UserModal user={editingUser} currentUser={currentUser} institutionsList={institutions} onClose={() => setShowUserModal(false)} onSave={handleSaveUser} />}
       {showRejectModal && <RejectModal onClose={() => setShowRejectModal(false)} onConfirm={handleConfirmReject} />}
     </div>
   );
 }
 
-function PaginationControls({ currentPage, totalPages, onPageChange }) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex items-center justify-center gap-4 p-4 border-t border-gray-100 bg-gray-50">
-      <button 
-        onClick={() => onPageChange(currentPage - 1)} 
-        disabled={currentPage === 1}
-        className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronLeft size={20} />
-      </button>
-      <span className="text-sm font-medium text-gray-600">
-        Sayfa {currentPage} / {totalPages}
-      </span>
-      <button 
-        onClick={() => onPageChange(currentPage + 1)} 
-        disabled={currentPage === totalPages}
-        className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronRight size={20} />
-      </button>
-    </div>
-  );
-}
+// --- YENİ BİLEŞEN: KURUM/BİRİM YÖNETİMİ ---
+function InstitutionManagerView({ currentUser, institutions, onAddInstitution, onAddDepartment }) {
+  const [newInstName, setNewInstName] = useState("");
+  const [deptForm, setDeptForm] = useState({ instId: "", name: "" });
 
-
-function QuestionsView({ currentUser, data, onOpenModal, onStatusChange, onDelete, onReject }) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-  const totalPages = Math.ceil(data.length / itemsPerPage);
-  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const canApprove = (content) => {
-    if (currentUser.role === ROLES.LOCAL_ADMIN && content.status === STATUS.PENDING) return true;
-    if (currentUser.role === ROLES.ADMIN) {
-        if (content.status === STATUS.LOCAL_APPROVED) return true;
-        if (content.status === STATUS.PENDING) return true; 
-        if (content.status === STATUS.REJECTED) return true; 
-    }
-    if (currentUser.role === ROLES.SUPER_ADMIN && content.status !== STATUS.PUBLISHED) return true;
-    return false;
-  };
-
-  const canDelete = (content) => { 
-    if (currentUser.role === ROLES.SUPER_ADMIN) return true; 
-    if (currentUser.role === ROLES.ADMIN && content.institutionId === currentUser.institutionId) return true; 
-    if (currentUser.role === ROLES.LOCAL_ADMIN && content.institutionId === currentUser.institutionId && content.departmentId === currentUser.departmentId) return true; 
-    if (currentUser.role === ROLES.USER && content.status === STATUS.PENDING) return true; 
-    return false; 
-  };
-  
-  return (
-    <section className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full">
-      <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800">Soru / Cevap Listesi</h3><button onClick={onOpenModal} className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 flex items-center"><Plus size={16} className="mr-2" /> Yeni Soru Ekle</button></div>
-      <div className="overflow-x-auto p-2 min-h-[300px]">
-        <table className="w-full text-left border-collapse">
-          <thead><tr className="bg-gray-50 text-gray-600 text-xs uppercase"><th className="p-4 border-b">Kurum</th><th className="p-4 border-b">Soru</th><th className="p-4 border-b">Cevap</th><th className="p-4 border-b">Durum</th><th className="p-4 border-b text-right">İşlemler</th></tr></thead>
-          <tbody className="text-sm">
-            {currentData.length === 0 ? <tr><td colSpan="5" className="p-4 text-center text-gray-500">Kayıt yok.</td></tr> : currentData.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                <td className="p-4 font-medium">{row.institution}</td>
-                <td className="p-4 font-bold text-gray-800 max-w-xs truncate">{row.question}</td>
-                <td className="p-4 text-gray-600 max-w-xs truncate">
-                  {row.answer}
-                  {row.status === STATUS.REJECTED && row.rejectionReason && (
-                    <div className="text-red-500 text-xs mt-1 flex items-center font-medium"><AlertCircle size={10} className="mr-1"/> Nedeni: {row.rejectionReason}</div>
-                  )}
-                </td>
-                <td className="p-4"><StatusBadge status={row.status} /></td>
-                <td className="p-4 text-right space-x-2">
-                  {canApprove(row) && <button onClick={() => {
-                      if (currentUser.role === ROLES.LOCAL_ADMIN) onStatusChange(row.id, STATUS.LOCAL_APPROVED);
-                      else onStatusChange(row.id, STATUS.PUBLISHED);
-                  }} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Onayla"><CheckCircle size={18}/></button>}
-                  {([ROLES.LOCAL_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(currentUser.role) && row.status !== STATUS.REJECTED) && 
-                    <button onClick={() => onReject(row.id)} className="text-red-500 hover:bg-red-50 p-1 rounded" title="Reddet"><XCircle size={18}/></button>
-                  }
-                  {canDelete(row) && <button onClick={() => onDelete(row.id)} className="text-gray-400 hover:text-red-600 p-1 rounded" title="Sil"><Trash2 size={18}/></button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-    </section>
-  );
-}
-
-function RejectModal({ onClose, onConfirm }) {
-  const [reason, setReason] = useState("");
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 space-y-4">
-        <h3 className="font-bold text-lg text-gray-800 flex items-center text-red-600"><AlertCircle className="mr-2"/> Reddetme Nedeni</h3>
-        <p className="text-sm text-gray-500">Lütfen bu soruyu neden reddettiğinizi belirtin (İsteğe bağlı).</p>
-        <textarea className="w-full border p-3 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" rows="3" placeholder="Reddetme nedeni..." value={reason} onChange={(e) => setReason(e.target.value)} />
-        <div className="flex justify-end gap-2"><button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">İptal</button><button onClick={() => onConfirm(reason)} className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded text-sm font-bold">Reddet</button></div>
-      </div>
-    </div>
-  );
-}
-
-function UsersView({ currentUser, data, onAdd, onEdit, onDelete }) {
-  const canAdd = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN].includes(currentUser.role);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-  const totalPages = Math.ceil(data.length / itemsPerPage);
-  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  return (
-    <section className="bg-white rounded-xl shadow-sm border border-gray-200">
-      <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800">Kullanıcı Yönetimi</h3>{canAdd && <button onClick={onAdd} className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 flex items-center"><Plus size={16} className="mr-2" /> Kullanıcı Ekle</button>}</div>
-      <div className="overflow-x-auto min-h-[300px]">
-        <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-gray-600 uppercase text-xs"><tr><th className="p-4">Ad Soyad</th><th className="p-4">Kullanıcı Adı</th><th className="p-4">Rol</th><th className="p-4">Kurum/Dept</th><th className="p-4 text-right">İşlem</th></tr></thead>
-            <tbody>
-                {currentData.length === 0 ? (<tr><td colSpan="5" className="p-4 text-center text-gray-500">Kayıt yok.</td></tr>) : currentData.map(u => (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-4 font-medium">{u.name} <div className="text-xs text-gray-400 font-normal">{u.email}</div></td><td className="p-4 text-gray-600">{u.username}</td><td className="p-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs">{u.role}</span></td><td className="p-4 text-gray-500">{u.institution} / {u.department}</td><td className="p-4 text-right"><button onClick={() => onEdit(u)} className="text-blue-600 hover:underline mr-3">Düzenle</button>{currentUser.role === ROLES.SUPER_ADMIN && <button onClick={() => onDelete(u.id)} className="text-red-600 hover:underline">Sil</button>}</td></tr>))}
-            </tbody>
-        </table>
-      </div>
-      <PaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-    </section>
-  );
-}
-
-function UserModal({ user, currentUser, onClose, onSave }) {
   const isSuper = currentUser.role === ROLES.SUPER_ADMIN;
-  const isAdmin = currentUser.role === ROLES.ADMIN;
-  const isLocal = currentUser.role === ROLES.LOCAL_ADMIN;
 
-  const initialData = user || { 
-    name: '', username: '', password: '', email: '', phone: '',
-    role: isLocal ? 'User' : 'User', 
-    institution: !isSuper ? currentUser.institution : '',
-    institutionId: !isSuper ? currentUser.institutionId : 0,
-    department: isLocal ? currentUser.department : '',
-    departmentId: isLocal ? currentUser.departmentId : 0
-  };
-
-  const [form, setForm] = useState(initialData);
-  const [availableDepartments, setAvailableDepartments] = useState([]);
-
+  // Admin girerse sadece kendi kurumunu seçili getir
   useEffect(() => {
-    if (form.institutionId) {
-      const selectedInst = INSTITUTIONS_LIST.find(i => i.id === Number(form.institutionId));
-      setAvailableDepartments(selectedInst ? selectedInst.departments : []);
-    } else {
-      setAvailableDepartments([]);
+    if (!isSuper) {
+      setDeptForm(prev => ({ ...prev, instId: currentUser.institutionId }));
     }
-  }, [form.institutionId]);
-
-  const roleOptions = [];
-  if (isSuper) roleOptions.push('Admin', 'LocalAdmin', 'User');
-  if (isAdmin) roleOptions.push('LocalAdmin', 'User');
-  if (isLocal) roleOptions.push('User');
-
-  const handleInstitutionChange = (e) => {
-    const instId = Number(e.target.value);
-    const inst = INSTITUTIONS_LIST.find(i => i.id === instId);
-    setForm({ ...form, institutionId: instId, institution: inst ? inst.name : '', departmentId: 0, department: '' });
-  };
-
-  const handleDepartmentChange = (e) => {
-    const deptId = Number(e.target.value);
-    const dept = availableDepartments.find(d => d.id === deptId);
-    setForm({ ...form, departmentId: deptId, department: dept ? dept.name : '' });
-  };
+  }, [currentUser, isSuper]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-gray-800 px-6 py-4 flex justify-between items-center text-white shrink-0"><h3 className="font-bold text-lg">{user ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı Ekle'}</h3><button onClick={onClose}><XCircle size={20} /></button></div>
-        <div className="p-6 space-y-3 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">Ad Soyad</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div><div><label className="text-xs font-bold text-gray-500">Kullanıcı Adı</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.username} onChange={e => setForm({...form, username: e.target.value})} required /></div></div>
-          <div><label className="text-xs font-bold text-gray-500">Şifre {user && "(Boş bırakırsan değişmez)"}</label><input type="password" className="w-full border p-2 rounded mt-1 text-sm" placeholder={user ? "******" : "Şifre belirle"} value={form.password || ''} onChange={e => setForm({...form, password: e.target.value})} /></div>
-          <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">E-posta</label><input type="email" className="w-full border p-2 rounded mt-1 text-sm" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div><div><label className="text-xs font-bold text-gray-500">Telefon</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div></div>
-          <hr className="my-2 border-gray-100" />
-          <div><label className="text-xs font-bold text-gray-500">Rol (Yetki)</label><select className="w-full border p-2 rounded mt-1 text-sm" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>{roleOptions.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="text-xs font-bold text-gray-500">Kurum</label><select className={`w-full border p-2 rounded mt-1 text-sm ${!isSuper ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} value={form.institutionId || ''} onChange={handleInstitutionChange} disabled={!isSuper}><option value="">Seçiniz</option>{INSTITUTIONS_LIST.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
-            <div><label className="text-xs font-bold text-gray-500">Departman</label><select className={`w-full border p-2 rounded mt-1 text-sm ${isLocal ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} value={form.departmentId || ''} onChange={handleDepartmentChange} disabled={isLocal || !form.institutionId}><option value="">Seçiniz</option>{availableDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+    <div className="space-y-6">
+      
+      {/* 1. ÜST KISIM: EKLEME FORMLARI */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* SOL: KURUM EKLEME (Sadece SuperAdmin) */}
+        {isSuper && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-bold text-lg mb-4 flex items-center"><Building className="mr-2 text-red-600"/> Yeni Kurum Ekle</h3>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                className="flex-1 border p-2 rounded text-sm focus:ring-2 focus:ring-red-500 outline-none" 
+                placeholder="Kurum Adı"
+                value={newInstName}
+                onChange={(e) => setNewInstName(e.target.value)}
+              />
+              <button 
+                onClick={() => { if(newInstName) { onAddInstitution(newInstName); setNewInstName(""); } }}
+                className="bg-red-700 text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-800"
+              >
+                Ekle
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SAĞ: BİRİM EKLEME (Admin ve SuperAdmin) */}
+        <div className={`bg-white p-6 rounded-xl shadow-sm border border-gray-200 ${!isSuper ? 'md:col-span-2' : ''}`}>
+          <h3 className="font-bold text-lg mb-4 flex items-center"><MapPin className="mr-2 text-blue-600"/> Yeni Birim Ekle</h3>
+          <div className="flex flex-col gap-3">
+            <select 
+              className={`border p-2 rounded text-sm ${!isSuper ? 'bg-gray-100 text-gray-500' : ''}`}
+              value={deptForm.instId}
+              onChange={(e) => setDeptForm({...deptForm, instId: e.target.value})}
+              disabled={!isSuper}
+            >
+              <option value="">Kurum Seçiniz</option>
+              {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+            
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                className="flex-1 border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                placeholder="Birim Adı (Örn: İnsan Kaynakları)"
+                value={deptForm.name}
+                onChange={(e) => setDeptForm({...deptForm, name: e.target.value})}
+              />
+              <button 
+                onClick={() => { 
+                  if(deptForm.instId && deptForm.name) { 
+                    onAddDepartment(deptForm.instId, deptForm.name); 
+                    setDeptForm(prev => ({...prev, name: ""})); 
+                  } else { alert("Lütfen kurum ve birim adı giriniz."); }
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+              >
+                Birim Ekle
+              </button>
+            </div>
           </div>
         </div>
-        <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-2 border-t shrink-0"><button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded text-sm">İptal</button><button onClick={() => onSave(form)} className="px-4 py-2 bg-red-700 text-white hover:bg-red-800 rounded text-sm font-medium">Kaydet</button></div>
+      </div>
+
+      {/* 2. ALT KISIM: LİSTELEME */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="font-bold text-gray-800">Mevcut Kurum ve Birimler</h3>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {institutions.map(inst => (
+            <div key={inst.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <h4 className="font-bold text-red-700 border-b pb-2 mb-2 flex items-center">
+                <Building size={16} className="mr-2"/> {inst.name}
+              </h4>
+              <ul className="space-y-1">
+                {inst.departments.length === 0 ? <li className="text-gray-400 text-xs italic">Henüz birim yok.</li> : 
+                 inst.departments.map(dept => (
+                  <li key={dept.id} className="text-sm text-gray-600 flex items-center">
+                    <ChevronRight size={14} className="text-gray-400 mr-1"/> {dept.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function DashboardView({ currentUser, stats }) { 
-  return (
-      <div className="space-y-6">
-          <div className="bg-gradient-to-r from-red-800 to-red-600 rounded-xl p-6 text-white shadow-lg">
-              <h2 className="text-2xl font-bold mb-2">Hoşgeldiniz, {currentUser.name}</h2>
-              <p className="opacity-90">Yetki: {currentUser.role}</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard title="Yayınlanan Sorular" value={stats.approved} icon={<CheckCircle size={24}/>} color="green" />
-              <StatCard title="Onay Bekleyen" value={stats.pending} icon={<Clock size={24}/>} color="yellow" />
-              
-              <StatCard title="Reddedilen Sorular" value={stats.rejected} icon={<XCircle size={24}/>} color="red" />
-              
-              <StatCard title="Kullanıcılar" value={stats.users} icon={<Users size={24}/>} color="purple" />
-          </div>
-      </div>
-  ); 
-}
+// --- DİĞER BİLEŞENLER (Aynı) ---
 
+function DashboardView({ currentUser, stats }) { 
+    return (
+        <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-800 to-red-600 rounded-xl p-6 text-white shadow-lg"><h2 className="text-2xl font-bold mb-2">Hoşgeldiniz, {currentUser.name}</h2><p className="opacity-90">Yetki: {currentUser.role}</p></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard title="Yayınlanan Sorular" value={stats.approved} icon={<CheckCircle size={24}/>} color="green" />
+                <StatCard title="Onay Bekleyen" value={stats.pending} icon={<Clock size={24}/>} color="yellow" />
+                <StatCard title="Reddedilen Sorular" value={stats.rejected} icon={<XCircle size={24}/>} color="red" />
+                <StatCard title="Kullanıcılar" value={stats.users} icon={<Users size={24}/>} color="purple" />
+            </div>
+        </div>
+    ); 
+}
 function LogsView({ logs }) { 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
@@ -487,28 +412,71 @@ function LogsView({ logs }) {
         </div>
     ); 
 }
+function PaginationControls({ currentPage, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-4 p-4 border-t border-gray-100 bg-gray-50"><button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={20} /></button><span className="text-sm font-medium text-gray-600">Sayfa {currentPage} / {totalPages}</span><button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"><ChevronRight size={20} /></button></div>
+  );
+}
+function QuestionsView({ currentUser, data, onOpenModal, onStatusChange, onDelete, onReject }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const canApprove = (content) => { if (currentUser.role === ROLES.LOCAL_ADMIN && content.status === STATUS.PENDING) return true; if (currentUser.role === ROLES.ADMIN) { if (content.status === STATUS.LOCAL_APPROVED) return true; if (content.status === STATUS.PENDING) return true; if (content.status === STATUS.REJECTED) return true; } if (currentUser.role === ROLES.SUPER_ADMIN && content.status !== STATUS.PUBLISHED) return true; return false; };
+  const canDelete = (content) => { if (currentUser.role === ROLES.SUPER_ADMIN) return true; if (currentUser.role === ROLES.ADMIN && content.institutionId === currentUser.institutionId) return true; if (currentUser.role === ROLES.LOCAL_ADMIN && content.institutionId === currentUser.institutionId && content.departmentId === currentUser.departmentId) return true; if (currentUser.role === ROLES.USER && content.status === STATUS.PENDING) return true; return false; };
+  
+  return (
+    <section className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full">
+      <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800">Soru / Cevap Listesi</h3><button onClick={onOpenModal} className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 flex items-center"><Plus size={16} className="mr-2" /> Yeni Soru Ekle</button></div>
+      <div className="overflow-x-auto p-2 min-h-[300px]">
+        <table className="w-full text-left border-collapse"><thead><tr className="bg-gray-50 text-gray-600 text-xs uppercase"><th className="p-4 border-b">Kurum</th><th className="p-4 border-b">Soru</th><th className="p-4 border-b">Cevap</th><th className="p-4 border-b">Durum</th><th className="p-4 border-b text-right">İşlemler</th></tr></thead><tbody className="text-sm">{currentData.length === 0 ? <tr><td colSpan="5" className="p-4 text-center text-gray-500">Kayıt yok.</td></tr> : currentData.map((row) => (<tr key={row.id} className="hover:bg-gray-50 transition-colors"><td className="p-4 font-medium">{row.institution}</td><td className="p-4 font-bold text-gray-800 max-w-xs truncate">{row.question}</td><td className="p-4 text-gray-600 max-w-xs truncate">{row.answer}{row.status === STATUS.REJECTED && row.rejectionReason && (<div className="text-red-500 text-xs mt-1 flex items-center font-medium"><AlertCircle size={10} className="mr-1"/> Nedeni: {row.rejectionReason}</div>)}</td><td className="p-4"><StatusBadge status={row.status} /></td><td className="p-4 text-right space-x-2">{canApprove(row) && <button onClick={() => { if (currentUser.role === ROLES.LOCAL_ADMIN) onStatusChange(row.id, STATUS.LOCAL_APPROVED); else onStatusChange(row.id, STATUS.PUBLISHED); }} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Onayla"><CheckCircle size={18}/></button>}{([ROLES.LOCAL_ADMIN, ROLES.ADMIN, ROLES.SUPER_ADMIN].includes(currentUser.role) && row.status !== STATUS.REJECTED) && <button onClick={() => onReject(row.id)} className="text-red-500 hover:bg-red-50 p-1 rounded" title="Reddet"><XCircle size={18}/></button>}{canDelete(row) && <button onClick={() => onDelete(row.id)} className="text-gray-400 hover:text-red-600 p-1 rounded" title="Sil"><Trash2 size={18}/></button>}</td></tr>))}</tbody></table>
+      </div>
+      <PaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+    </section>
+  );
+}
+function RejectModal({ onClose, onConfirm }) { const [reason, setReason] = useState(""); return (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden p-6 space-y-4"><h3 className="font-bold text-lg text-gray-800 flex items-center text-red-600"><AlertCircle className="mr-2"/> Reddetme Nedeni</h3><p className="text-sm text-gray-500">Lütfen bu soruyu neden reddettiğinizi belirtin (İsteğe bağlı).</p><textarea className="w-full border p-3 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" rows="3" placeholder="Reddetme nedeni..." value={reason} onChange={(e) => setReason(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm">İptal</button><button onClick={() => onConfirm(reason)} className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded text-sm font-bold">Reddet</button></div></div></div>); }
+function UsersView({ currentUser, data, onAdd, onEdit, onDelete }) {
+  const canAdd = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.LOCAL_ADMIN].includes(currentUser.role);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  return (
+    <section className="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="px-6 py-5 border-b border-gray-200 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800">Kullanıcı Yönetimi</h3>{canAdd && <button onClick={onAdd} className="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 flex items-center"><Plus size={16} className="mr-2" /> Kullanıcı Ekle</button>}</div>
+      <div className="overflow-x-auto min-h-[300px]"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-600 uppercase text-xs"><tr><th className="p-4">Ad Soyad</th><th className="p-4">Kullanıcı Adı</th><th className="p-4">Rol</th><th className="p-4">Kurum/Dept</th><th className="p-4 text-right">İşlem</th></tr></thead><tbody>{currentData.length === 0 ? (<tr><td colSpan="5" className="p-4 text-center text-gray-500">Kayıt yok.</td></tr>) : currentData.map(u => (<tr key={u.id} className="border-b hover:bg-gray-50"><td className="p-4 font-medium">{u.name} <div className="text-xs text-gray-400 font-normal">{u.email}</div></td><td className="p-4 text-gray-600">{u.username}</td><td className="p-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs">{u.role}</span></td><td className="p-4 text-gray-500">{u.institution} / {u.department}</td><td className="p-4 text-right"><button onClick={() => onEdit(u)} className="text-blue-600 hover:underline mr-3">Düzenle</button>{currentUser.role === ROLES.SUPER_ADMIN && <button onClick={() => onDelete(u.id)} className="text-red-600 hover:underline">Sil</button>}</td></tr>))}</tbody></table></div>
+      <PaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+    </section>
+  );
+}
+// --- GÜNCELLENMİŞ USER MODAL (Dynamik Kurum Listesi) ---
+function UserModal({ user, currentUser, institutionsList, onClose, onSave }) {
+  const isSuper = currentUser.role === ROLES.SUPER_ADMIN;
+  const isAdmin = currentUser.role === ROLES.ADMIN;
+  const isLocal = currentUser.role === ROLES.LOCAL_ADMIN;
+  const initialData = user || { name: '', username: '', password: '', email: '', phone: '', role: isLocal ? 'User' : 'User', institution: !isSuper ? currentUser.institution : '', institutionId: !isSuper ? currentUser.institutionId : 0, department: isLocal ? currentUser.department : '', departmentId: isLocal ? currentUser.departmentId : 0 };
+  const [form, setForm] = useState(initialData);
+  const [availableDepartments, setAvailableDepartments] = useState([]);
+
+  useEffect(() => {
+    if (form.institutionId) {
+      const selectedInst = institutionsList.find(i => i.id === Number(form.institutionId));
+      setAvailableDepartments(selectedInst ? selectedInst.departments : []);
+    } else { setAvailableDepartments([]); }
+  }, [form.institutionId, institutionsList]);
+
+  const roleOptions = []; if (isSuper) roleOptions.push('Admin', 'LocalAdmin', 'User'); if (isAdmin) roleOptions.push('LocalAdmin', 'User'); if (isLocal) roleOptions.push('User');
+  const handleInstitutionChange = (e) => { const instId = Number(e.target.value); const inst = institutionsList.find(i => i.id === instId); setForm({ ...form, institutionId: instId, institution: inst ? inst.name : '', departmentId: 0, department: '' }); };
+  const handleDepartmentChange = (e) => { const deptId = Number(e.target.value); const dept = availableDepartments.find(d => d.id === deptId); setForm({ ...form, departmentId: deptId, department: dept ? dept.name : '' }); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"><div className="bg-gray-800 px-6 py-4 flex justify-between items-center text-white shrink-0"><h3 className="font-bold text-lg">{user ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı Ekle'}</h3><button onClick={onClose}><XCircle size={20} /></button></div><div className="p-6 space-y-3 overflow-y-auto"><div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">Ad Soyad</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div><div><label className="text-xs font-bold text-gray-500">Kullanıcı Adı</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.username} onChange={e => setForm({...form, username: e.target.value})} required /></div></div><div><label className="text-xs font-bold text-gray-500">Şifre {user && "(Boş bırakırsan değişmez)"}</label><input type="password" className="w-full border p-2 rounded mt-1 text-sm" placeholder={user ? "******" : "Şifre belirle"} value={form.password || ''} onChange={e => setForm({...form, password: e.target.value})} /></div><div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">E-posta</label><input type="email" className="w-full border p-2 rounded mt-1 text-sm" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div><div><label className="text-xs font-bold text-gray-500">Telefon</label><input type="text" className="w-full border p-2 rounded mt-1 text-sm" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div></div><hr className="my-2 border-gray-100" /><div><label className="text-xs font-bold text-gray-500">Rol (Yetki)</label><select className="w-full border p-2 rounded mt-1 text-sm" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>{roleOptions.map(r => <option key={r} value={r}>{r}</option>)}</select></div><div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">Kurum</label><select className={`w-full border p-2 rounded mt-1 text-sm ${!isSuper ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} value={form.institutionId || ''} onChange={handleInstitutionChange} disabled={!isSuper}><option value="">Seçiniz</option>{institutionsList.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div><label className="text-xs font-bold text-gray-500">Departman</label><select className={`w-full border p-2 rounded mt-1 text-sm ${isLocal ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`} value={form.departmentId || ''} onChange={handleDepartmentChange} disabled={isLocal || !form.institutionId}><option value="">Seçiniz</option>{availableDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div></div></div><div className="bg-gray-50 px-6 py-4 flex justify-end space-x-2 border-t shrink-0"><button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded text-sm">İptal</button><button onClick={() => onSave(form)} className="px-4 py-2 bg-red-700 text-white hover:bg-red-800 rounded text-sm font-medium">Kaydet</button></div></div></div>
+  );
+}
 function ContentModal({ onClose, onSave }) { const [form, setForm] = useState({ question: '', answer: '' }); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4"><h3 className="font-bold text-lg">Yeni Soru Ekle</h3><textarea className="w-full border p-2 rounded" rows="2" placeholder="Soru" onChange={e=>setForm({...form,question:e.target.value})}/><textarea className="w-full border p-2 rounded" rows="4" placeholder="Cevap" onChange={e=>setForm({...form,answer:e.target.value})}/><div className="flex justify-end gap-2"><button onClick={onClose} className="px-4 py-2 text-gray-700">İptal</button><button onClick={()=>onSave(form)} className="px-4 py-2 bg-red-700 text-white rounded">Kaydet</button></div></div></div>; }
 function ProfileView({ user }) { return <div className="bg-white p-8 rounded-xl shadow-sm border max-w-md mx-auto text-center"><div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-red-700 font-bold text-3xl mx-auto mb-4">{user.name.charAt(0)}</div><h2 className="text-xl font-bold">{user.name}</h2><p className="text-gray-500">{user.role}</p><div className="mt-6 text-left bg-gray-50 p-4 rounded text-sm space-y-2"><p><strong>Kurum:</strong> {user.institution}</p><p><strong>Departman:</strong> {user.department}</p><p><strong>E-posta:</strong> {user.email || 'Belirtilmemiş'}</p><p><strong>Telefon:</strong> {user.phone || 'Belirtilmemiş'}</p></div></div>; }
 function AccessDenied() { return <div className="flex flex-col items-center justify-center h-96 text-center"><Shield size={64} className="text-red-300 mb-4" /><h2 className="text-2xl font-bold text-gray-800">Erişim Reddedildi</h2></div>; }
-function StatCard({ title, value, icon, color }) { 
-  const colors = { 
-    blue: 'bg-blue-100 text-blue-600', 
-    purple: 'bg-purple-100 text-purple-600', 
-    yellow: 'bg-yellow-100 text-yellow-600', 
-    green: 'bg-green-100 text-green-600',
-    red: 'bg-red-100 text-red-600' 
-  }; 
-  
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center space-x-4">
-      <div className={`p-3 rounded-lg ${colors[color]}`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm text-gray-500">{title}</p>
-        <h4 className="text-2xl font-bold text-gray-800">{value}</h4>
-      </div>
-    </div>
-  ); 
-}
+function StatCard({ title, value, icon, color }) { const colors = { blue: 'bg-blue-100 text-blue-600', purple: 'bg-purple-100 text-purple-600', yellow: 'bg-yellow-100 text-yellow-600', green: 'bg-green-100 text-green-600', red: 'bg-red-100 text-red-600' }; return <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center space-x-4"><div className={`p-3 rounded-lg ${colors[color]}`}>{icon}</div><div><p className="text-sm text-gray-500">{title}</p><h4 className="text-2xl font-bold text-gray-800">{value}</h4></div></div>; }
 function StatusBadge({ status }) { const s = {0:'Onay Bekliyor', 1:'Yönetici Onayında', 2:'Yayınlandı', 3:'Reddedildi'}; const c = {0:'bg-yellow-100 text-yellow-800', 1:'bg-blue-100 text-blue-800', 2:'bg-green-100 text-green-800', 3:'bg-red-100 text-red-800'}; return <span className={`px-2 py-1 rounded text-xs ${c[status]}`}>{s[status]}</span>; }
